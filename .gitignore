@@ -1,0 +1,25 @@
+# Respaldos de Bluecoins (bases de datos y archivos de sincronización)
+backups/*
+!backups/.gitkeep
+
+# Archivos generados (datos financieros sensibles)
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Sistema operativo y editores
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
