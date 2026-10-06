@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Bluecoins Backup Extractor
-Lee los archivos de respaldo (.fydb) generados por Bluecoins y exporta las transacciones a CSV.
+Lee los archivos de respaldo (.fydb) generados por Bluecoins y exporta las transacciones activas a CSV.
 """
 
 import argparse
@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 
 
-def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool = False):
-    """Lee la base de datos de Bluecoins y exporta las transacciones a un archivo CSV."""
+def extract_bluecoins_data(db_path: str, output_csv: str):
+    """Lee la base de datos de Bluecoins y exporta las transacciones activas a un archivo CSV."""
     if not os.path.isfile(db_path):
         raise FileNotFoundError(f"No se encontró el archivo de base de datos: {db_path}")
 
@@ -22,10 +22,8 @@ def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool 
     conn = sqlite3.connect(uri, uri=True)
     cur = conn.cursor()
 
-    # Filtro para registros eliminados (5 = Eliminada/Papelera, 6 = Activa)
-    state_filter = "" if include_deleted else "WHERE t.deletedTransaction = 6"
-
-    query = f"""
+    # Excluir transacciones eliminadas (deletedTransaction = 5 son eliminadas, 6 son activas)
+    query = """
     SELECT 
         t.transactionsTableID AS id,
         t.date AS date,
@@ -48,12 +46,7 @@ def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool 
             ELSE 'Uncleared'
         END AS status,
         COALESCE(GROUP_CONCAT(DISTINCT l.labelName), '') AS labels,
-        COALESCE(t.notes, '') AS notes,
-        CASE t.deletedTransaction
-            WHEN 6 THEN 'Active'
-            WHEN 5 THEN 'Deleted'
-            ELSE 'Unknown'
-        END AS state
+        SUBSTR(COALESCE(t.notes, ''), 1, 15) AS notes
     FROM TRANSACTIONSTABLE t
     LEFT JOIN TRANSACTIONTYPETABLE tt ON t.transactionTypeID = tt.transactionTypeTableID
     LEFT JOIN ITEMTABLE i ON t.itemID = i.itemTableID
@@ -63,7 +56,7 @@ def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool 
     LEFT JOIN ACCOUNTTYPETABLE at ON a.accountTypeID = at.accountTypeTableID
     LEFT JOIN ACCOUNTSTABLE ap ON t.accountPairID = ap.accountsTableID
     LEFT JOIN LABELSTABLE l ON t.transactionsTableID = l.transactionIDLabels
-    {state_filter}
+    WHERE t.deletedTransaction = 6
     GROUP BY t.transactionsTableID
     ORDER BY t.date DESC
     """
@@ -86,7 +79,6 @@ def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool 
         "status",
         "labels",
         "notes",
-        "state",
     ]
 
     # Escribir el CSV con codificación UTF-8 con BOM para compatibilidad con Excel
@@ -102,17 +94,17 @@ def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool 
     print(f" Base de datos leída : {db_path}")
     print(f" Filas exportadas    : {len(rows):,}")
     print(f" Archivo CSV generado: {output_csv}")
-    print(f" Incluye eliminadas  : {'Sí' if include_deleted else 'No'}")
+    print(f" Transacciones elim. : Excluidas (deletedTransaction != 6)")
 
     # Mostrar desglose por tipo
     cur.execute(
-        f"""
+        """
         SELECT COALESCE(tt.transactionTypeName, 'Otro'), COUNT(*), SUM(t.amount / 1000000.0)
         FROM TRANSACTIONSTABLE t
         LEFT JOIN TRANSACTIONTYPETABLE tt ON t.transactionTypeID = tt.transactionTypeTableID
-        {state_filter}
+        WHERE t.deletedTransaction = 6
         GROUP BY t.transactionTypeID
-    """
+        """
     )
     summary_types = cur.fetchall()
     print("\n Desglose por tipo:")
@@ -122,11 +114,11 @@ def extract_bluecoins_data(db_path: str, output_csv: str, include_deleted: bool 
 
     # Rango de fechas
     cur.execute(
-        f"""
+        """
         SELECT MIN(date), MAX(date)
         FROM TRANSACTIONSTABLE t
-        {state_filter}
-    """
+        WHERE t.deletedTransaction = 6
+        """
     )
     min_date, max_date = cur.fetchone()
     print(f"\n Rango de fechas     : {min_date}  -->  {max_date}")
@@ -150,7 +142,7 @@ def find_default_backup() -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Extrae transacciones de respaldos Bluecoins (.fydb) a un archivo CSV."
+        description="Extrae transacciones activas de respaldos Bluecoins (.fydb) a un archivo CSV."
     )
     parser.add_argument(
         "-i",
@@ -166,11 +158,6 @@ def main():
         default="transacciones_bluecoins.csv",
         help="Nombre/ruta del archivo CSV de salida (por defecto: transacciones_bluecoins.csv).",
     )
-    parser.add_argument(
-        "--include-deleted",
-        action="store_true",
-        help="Incluir transacciones eliminadas / que están en la papelera.",
-    )
 
     args = parser.parse_args()
 
@@ -180,7 +167,6 @@ def main():
         extract_bluecoins_data(
             db_path=input_file,
             output_csv=args.output_file,
-            include_deleted=args.include_deleted,
         )
     except Exception as e:
         print(f"Error al procesar el archivo: {e}", file=sys.stderr)
