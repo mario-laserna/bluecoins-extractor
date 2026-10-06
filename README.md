@@ -11,7 +11,7 @@ Los archivos con extensión `.fydb` (como `bluecoins.fydb`) son en realidad **ba
 ### Estructura principal de la base de datos:
 * **`TRANSACTIONSTABLE`**: Contiene el registro de todas las transacciones (ingresos, gastos, transferencias y balances iniciales).
   * Los montos (`amount`) se almacenan como enteros multiplicados por un factor de **1,000,000** (por ejemplo, `$1,000 COP` se almacena como `1000000000`).
-  * El campo `deletedTransaction` indica si el registro está activo (`6`) o en la papelera/eliminado (`5`).
+  * El campo `deletedTransaction` indica si el registro está activo (`6`) o en la papelera/eliminado (`5`). El extractor filtra automáticamente solo los registros activos (`6`).
 * **`ITEMTABLE`**: Nombres o conceptos de las transacciones (ej. *comida*, *pago colegio*).
 * **`CHILDCATEGORYTABLE` & `PARENTCATEGORYTABLE`**: Jerarquía de categorías y subcategorías.
 * **`ACCOUNTSTABLE` & `ACCOUNTTYPETABLE`**: Información sobre cuentas (bancos, tarjetas de crédito, efectivo, pasivos) y sus tipos.
@@ -47,11 +47,6 @@ python3 extractor.py
   python3 extractor.py -o mis_gastos.csv
   ```
 
-* **Incluir transacciones eliminadas / en papelera:**
-  ```bash
-  python3 extractor.py --include-deleted
-  ```
-
 ---
 
 ## 📊 Columnas del CSV generado
@@ -71,6 +66,5 @@ python3 extractor.py
 | `account` | Cuenta asociada |
 | `transfer_pair_account` | Cuenta destino/origen (para transferencias) |
 | `status` | Estado (`Reconciled`, `Cleared`, `Uncleared`) |
-| `labels` | Etiquetas asociadas separadas por coma |
-| `notes` | Notas de la transacción |
-| `state` | Estado del registro (`Active` o `Deleted`) |
+| `labels` | Etiquetas asociadas |
+| `notes` | Notas de la transacción (máximo los primeros 15 caracteres) |
